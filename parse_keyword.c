@@ -1,7 +1,7 @@
 #include "postgres.h"
 
 #include "parse_keyword.h"
-
+#include "nodes/parsenodes.h"
 #include "parser/gramparse.h"
 
 #if PG_VERSION_NUM >= 90600

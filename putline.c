@@ -1,7 +1,7 @@
 #include "postgres.h"
 #include "funcapi.h"
 #include "access/heapam.h"
-#include "access/htup_details.h"
+//#include "access/htup_details.h"
 #include "catalog/pg_type.h"
 #include "lib/stringinfo.h"
 
@@ -149,7 +149,7 @@ dbms_output_enable_internal(int32 n_buf_size)
 	/* We allocate +2 bytes for an end-of-line and a string terminator. */
 	if (buffer == NULL)
 	{
-		buffer = MemoryContextAlloc(TopMemoryContext, n_buf_size + 2);
+		buffer = (char *)MemoryContextAlloc(TopMemoryContext, n_buf_size + 2);
 		buffer_size = n_buf_size;
 		buffer_len = 0;
 		buffer_get = 0;
@@ -157,7 +157,7 @@ dbms_output_enable_internal(int32 n_buf_size)
 	else if (n_buf_size > buffer_len)
 	{
 		/* We cannot shrink buffer less than current length. */
-		buffer = repalloc(buffer, n_buf_size + 2);
+		buffer = (char *)repalloc(buffer, n_buf_size + 2);
 		buffer_size = n_buf_size;
 	}
 }

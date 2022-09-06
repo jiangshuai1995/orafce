@@ -39,7 +39,7 @@ static YY_BUFFER_STATE scanbufhandle;
 #define SET_YYLLOC()  (orafce_sql_yylval.val.lloc = yytext - scanbuf)                                                                                              
                                                                                                                                                
 /* Handles to the buffer that the lexer uses internally */                                                                                     
-static char *scanbuf;       
+/* static char *scanbuf;    */    
 
 /* flex 2.5.4 doesn't bother with a decl for this */
 
@@ -74,7 +74,7 @@ static int	lexer_errposition(void);
  */
 
 /* Handles to the buffer that the lexer uses internally */
-static char *scanbuf;
+/* static char *scanbuf; */
 
 static unsigned char unescape_single_char(unsigned char c);
 
@@ -496,7 +496,7 @@ other			.
 					yyless(1);
 					BEGIN(INITIAL);
 					yylval.val.str = litbufdup();
-					yylval.val.modificator = extended_string ? "es" : "qs";
+					yylval.val.modificator = extended_string ? (char *)"es" : (char *)"qs";
 					yylval.val.keycode = -1;
 					yylval.val.sep = NULL;
 					return X_SCONST;
@@ -532,7 +532,7 @@ other			.
 				}
 <xq,xe><<EOF>>		{ 
 					yylval.val.str = litbufdup();
-					yylval.val.modificator = extended_string ? "esu" : "qsu";
+					yylval.val.modificator = extended_string ? (char *)"esu" : (char *)"qsu";
 					yylval.val.keycode = -1;
 					yylval.val.sep = NULL;
 					return X_SCONST;
@@ -944,7 +944,7 @@ orafce_sql_scanner_init(const char *str)
 	 * Make a scan buffer with special termination needed by flex.
 	 */
 	scanbuflen = slen;
-	scanbuf = palloc(slen + 2);
+	scanbuf = (char *)palloc(slen + 2);
 	memcpy(scanbuf, str, slen);
 	scanbuf[slen] = scanbuf[slen + 1] = YY_END_OF_BUFFER_CHAR;
 	scanbufhandle = yy_scan_buffer(scanbuf, slen + 2);
@@ -1010,11 +1010,11 @@ addlitchar(unsigned char ychar)
 static char *
 litbufdup(void)
 {
-	char *new;
+	char * new_a;
 
-	new = palloc(literallen + 1);
-	memcpy(new, literalbuf, literallen+1);
-	return new;
+	new_a = (char *)palloc(literallen + 1);
+	memcpy(new_a, literalbuf, literallen+1);
+	return new_a;
 }
 
 

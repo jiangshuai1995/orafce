@@ -1,5 +1,5 @@
 #include "postgres.h"
-#include "storage/lwlock.h"
+#include "storage/lock/lwlock.h"
 #include "storage/shmem.h"
 #include "utils/guc.h"
 #include "commands/variable.h"

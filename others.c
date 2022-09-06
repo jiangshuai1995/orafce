@@ -65,7 +65,7 @@ ora_concat(PG_FUNCTION_ARGS)
 	l1 = VARSIZE_ANY_EXHDR(t1);
 	l2 = VARSIZE_ANY_EXHDR(t2);
 
-	result = palloc(l1+l2+VARHDRSZ);
+	result = (text *)palloc(l1+l2+VARHDRSZ);
 	memcpy(VARDATA(result), VARDATA_ANY(t1), l1);
 	memcpy(VARDATA(result) + l1, VARDATA_ANY(t2), l2);
 	SET_VARSIZE(result, l1 + l2 + VARHDRSZ);
@@ -164,7 +164,7 @@ _nls_run_strxfrm(text *string, text *locale)
 	string_len = VARSIZE_ANY_EXHDR(string);
 	if (string_len < 0)
 		return NULL;
-	string_str = palloc(string_len + 1);
+	string_str = (char *)palloc(string_len + 1);
 	memcpy(string_str, VARDATA_ANY(string), string_len);
 
 	*(string_str + string_len) = '\0';
@@ -181,7 +181,7 @@ _nls_run_strxfrm(text *string, text *locale)
 		&& (strncmp(lc_collate_cache, VARDATA_ANY(locale), locale_len)
 			|| *(lc_collate_cache + locale_len) != '\0'))
 	{
-		locale_str = palloc(locale_len + 1);
+		locale_str = (char *)palloc(locale_len + 1);
 		memcpy(locale_str, VARDATA_ANY(locale), locale_len);
 		*(locale_str + locale_len) = '\0';
 
@@ -210,14 +210,14 @@ _nls_run_strxfrm(text *string, text *locale)
 		 * Increase the buffer until the strxfrm is able to fit.
 		 */
 		size = string_len * multiplication + 1;
-		tmp = palloc(size + VARHDRSZ);
+		tmp = (char *)palloc(size + VARHDRSZ);
 
 		rest = strxfrm(tmp + VARHDRSZ, string_str, size);
 		while (rest >= size)
 		{
 			pfree(tmp);
 			size = rest + 1;
-			tmp = palloc(size + VARHDRSZ);
+			tmp = (char *)palloc(size + VARHDRSZ);
 			rest = strxfrm(tmp + VARHDRSZ, string_str, size);
 			/*
 			 * Cache the multiplication factor so that the next
@@ -277,7 +277,7 @@ ora_nlssort(PG_FUNCTION_ARGS)
 			locale = def_locale;
 		else
 		{
-			locale = palloc(VARHDRSZ);
+			locale = (text *)palloc(VARHDRSZ);
 			SET_VARSIZE(locale, VARHDRSZ);
 		}
 	}
@@ -343,14 +343,14 @@ ora_decode(PG_FUNCTION_ARGS)
 			Oid				eqoid = equality_oper_funcid(typid);
 
 			oldctx = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
-			eq = palloc(sizeof(FmgrInfo));
+			eq = (FmgrInfo *)palloc(sizeof(FmgrInfo));
 			fmgr_info(eqoid, eq);
 			MemoryContextSwitchTo(oldctx);
 
 			fcinfo->flinfo->fn_extra = eq;
 		}
 		else
-			eq = fcinfo->flinfo->fn_extra;
+			eq = (FmgrInfo *)fcinfo->flinfo->fn_extra;
 
 		for (i = 1; i < nargs; i += 2)
 		{

@@ -48,7 +48,7 @@ static int __len;
 #define CSTRING(txt) \
 	( \
     __len = VARSIZE(txt) - VARHDRSZ, \
-    __result = palloc(__len + 1), \
+    __result = (char *)palloc(__len + 1), \
     memcpy(__result, VARDATA(txt), __len), \
     __result[__len] = '\0', \
     __result)

@@ -19,14 +19,14 @@
 
 #include "executor/spi.h"
 
-#include "access/htup_details.h"
+//#include "access/htup_details.h"
 #include "catalog/pg_type.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "port.h"
-#include "storage/fd.h"
+#include "storage/smgr/fd.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "orafce.h"
@@ -99,13 +99,13 @@ PG_FUNCTION_INFO_V1(utl_file_tmpdir);
 			CUSTOM_EXCEPTION(INVALID_MAXLINESIZE, "maxlinesize is out of range"); \
 	} while(0)
 
-typedef struct FileSlot
-{
-	FILE   *file;
-	int		max_linesize;
-	int		encoding;
-	int32	id;
-} FileSlot;
+// typedef struct FileSlot
+// {
+// 	FILE   *file;
+// 	int		max_linesize;
+// 	int		encoding;
+// 	int32	id;
+// } FileSlot;
 
 #define MAX_SLOTS		50			/* Oracle 10g supports 50 files */
 #define INVALID_SLOTID	0			/* invalid slot id */
@@ -323,7 +323,7 @@ get_line(FILE *f, size_t max_linesize, int encoding, bool *iseof)
 	text *result = NULL;
 	bool eof = true;
 
-	buffer = palloc(max_linesize + 2);
+	buffer = (char *)palloc(max_linesize + 2);
 	bpt = buffer;
 
 	errno = 0;
@@ -359,7 +359,7 @@ get_line(FILE *f, size_t max_linesize, int encoding, bool *iseof)
 		decoded = (char *) pg_do_encoding_conversion((unsigned char *) buffer,
 									 size2int(csize), encoding, GetDatabaseEncoding());
 		len = (decoded == buffer ? csize : strlen(decoded));
-		result = palloc(len + VARHDRSZ);
+		result = (text *)palloc(len + VARHDRSZ);
 		memcpy(VARDATA(result), decoded, len);
 		SET_VARSIZE(result, len + VARHDRSZ);
 		if (decoded != buffer)
@@ -913,7 +913,7 @@ get_safe_path(text *location_or_dirname, text *filename)
 		int		aux_pos = size2int(strlen(location));
 		int		aux_len = VARSIZE_ANY_EXHDR(filename);
 
-		fullname = palloc(aux_pos + 1 + aux_len + 1);
+		fullname = (char *)palloc(aux_pos + 1 + aux_len + 1);
 		strcpy(fullname, location);
 		fullname[aux_pos] = '/';
 		memcpy(fullname + aux_pos + 1, VARDATA(filename), aux_len);
@@ -928,7 +928,7 @@ get_safe_path(text *location_or_dirname, text *filename)
 		int aux_pos = VARSIZE_ANY_EXHDR(location_or_dirname);
 		int aux_len = VARSIZE_ANY_EXHDR(filename);
 
-		fullname = palloc(aux_pos + 1 + aux_len + 1);
+		fullname = (char *)palloc(aux_pos + 1 + aux_len + 1);
 		memcpy(fullname, VARDATA(location_or_dirname), aux_pos);
 		fullname[aux_pos] = '/';
 		memcpy(fullname + aux_pos + 1, VARDATA(filename), aux_len);
@@ -1080,7 +1080,7 @@ copy_text_file(FILE *srcfile, FILE *dstfile, int start_line, int end_line)
 	size_t		len;
 	int			i;
 
-	buffer = palloc(MAX_LINESIZE);
+	buffer = (char *)palloc(MAX_LINESIZE);
 
 	errno = 0;
 

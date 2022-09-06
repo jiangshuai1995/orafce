@@ -19,6 +19,11 @@
 
 #endif
 
+/*
+ * Maximum byte length of multibyte characters in any backend encoding
+ */
+#define MAX_MULTIBYTE_CHAR_LEN	4
+
 PG_FUNCTION_INFO_V1(orafce_to_char_int4);
 PG_FUNCTION_INFO_V1(orafce_to_char_int8);
 PG_FUNCTION_INFO_V1(orafce_to_char_float4);

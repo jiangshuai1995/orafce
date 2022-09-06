@@ -1,15 +1,16 @@
 #include "postgres.h"
 #include "executor/spi.h"
 
-#include "access/htup_details.h"
+//#include "access/htup_details.h"
 #include "catalog/pg_type.h"
 #include "commands/trigger.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "string.h"
-#include "storage/lwlock.h"
+#include "storage/lock/lwlock.h"
 #include "storage/procarray.h"
 #include "utils/timestamp.h"
+
 
 #include "orafce.h"
 #include "builtins.h"
@@ -28,6 +29,14 @@ PG_FUNCTION_INFO_V1(dbms_alert_defered_signal);
 
 extern int sid;
 float8 sensitivity = 250.0;
+
+/*
+ * Prior to PostgreSQL 9.4, we used an enum type called LWLockId to refer
+ * to LWLocks.  New code should instead use LWLock *.  However, for the
+ * convenience of third-party code, we include the following typedef.
+ */
+typedef LWLock *LWLockId;
+
 extern LWLockId shmem_lockid;
 
 #ifndef _GetCurrentTimestamp
@@ -196,7 +205,7 @@ find_lock(int sid, bool create)
 		{
 			locks[first_free].sid = sid;
 			locks[first_free].echo = NULL;
-			locks[first_free].pid = MyProcPid;
+			locks[first_free].pid = t_thrd.proc_cxt.MyProcPid;
 			session_lock = &locks[first_free];
 			return &locks[first_free];
 		}
@@ -517,9 +526,9 @@ create_message(text *event_name, text *message)
 				msg_item = msg_item->next_message;
 			}
 
-			msg_item = salloc(sizeof(message_item));
+			msg_item = (message_item *)salloc(sizeof(message_item));
 
-			msg_item->receivers = salloc( ev->receivers_number*sizeof(int));
+			msg_item->receivers = (int *)salloc( ev->receivers_number*sizeof(int));
 			msg_item->receivers_number = ev->receivers_number;
 
 			if (message != NULL)
@@ -538,7 +547,7 @@ create_message(text *event_name, text *message)
 						{
 							/* create echo */
 
-							message_echo *echo = salloc(sizeof(message_echo));
+							message_echo *echo = (message_echo *)salloc(sizeof(message_echo));
 							echo->message = msg_item;
 							echo->message_id = event_id;
 							echo->next_echo = NULL;
@@ -963,7 +972,9 @@ dbms_alert_defered_signal(PG_FUNCTION_ARGS)
 		Oid argtypes[1] = {TIDOID};
 		char nulls[1] = {' '};
 		Datum values[1];
-		void *plan;
+		SPIPlanPtr plan;
+
+		int spirc;
 
 		create_message(name, message);
 		LWLockRelease(shmem_lockid);
@@ -977,7 +988,8 @@ dbms_alert_defered_signal(PG_FUNCTION_ARGS)
 
 		values[0] = ItemPointerGetDatum(tid);
 
-		if (SPI_OK_DELETE != SPI_execute_plan(plan, values, nulls, false, 1))
+		spirc = SPI_execute_plan(plan, values, nulls, false, 1);
+		if (spirc != SPI_OK_DELETE )
 			ereport(ERROR,
 				(errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
 				errmsg("can't execute sql")));
@@ -1030,7 +1042,7 @@ if (SPI_OK_##_type_ != SPI_exec(cmd, 1)) \
 Datum
 dbms_alert_signal(PG_FUNCTION_ARGS)
 {
-	void *plan;
+	SPIPlanPtr plan;
 	Oid argtypes[] = {TEXTOID, TEXTOID};
 	Datum values[2];
 	char nulls[2] = {' ',' '};

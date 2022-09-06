@@ -110,9 +110,9 @@ ora_mb_strlen(text *str, char **sizes, int **positions)
 	r_len = VARSIZE_ANY_EXHDR(str);
 
 	if (NULL != sizes)
-		*sizes = palloc(r_len * sizeof(char));
+		*sizes = (char *)palloc(r_len * sizeof(char));
 	if (NULL != positions)
-		*positions = palloc(r_len * sizeof(int));
+		*positions = (int *)palloc(r_len * sizeof(int));
 
 	while (cur < r_len)
 	{
@@ -322,7 +322,7 @@ plvstr_normalize(PG_FUNCTION_ARGS)
 	mb_encode = pg_database_encoding_max_length() > 1;
 
 	l = VARSIZE_ANY_EXHDR(str);
-	aux_cur = aux = palloc(l);
+	aux_cur = aux = (char *)palloc(l);
 
 	write_spc = false;
 	cur = VARDATA_ANY(str);
@@ -381,7 +381,7 @@ plvstr_normalize(PG_FUNCTION_ARGS)
 	}
 
 	l = aux_cur - aux;
-	result = palloc(l+VARHDRSZ);
+	result = (text *)palloc(l+VARHDRSZ);
 	SET_VARSIZE(result, l + VARHDRSZ);
 	memcpy(VARDATA(result), aux, l);
 
@@ -617,9 +617,9 @@ plvstr_rvrs(PG_FUNCTION_ARGS)
 		fz_size = VARSIZE_ANY_EXHDR(str);
 
 		if ((max_size = (new_len*pg_database_encoding_max_length())) > fz_size)
-			result = palloc(fz_size + VARHDRSZ);
+			result = (text *)palloc(fz_size + VARHDRSZ);
 		else
-			result = palloc(max_size + VARHDRSZ);
+			result = (text *)palloc(max_size + VARHDRSZ);
 		data = (char*) VARDATA(result);
 
 		cur_size = 0;
@@ -636,7 +636,7 @@ plvstr_rvrs(PG_FUNCTION_ARGS)
 	else
 	{
 		char *p = VARDATA_ANY(str);
-		result = palloc(new_len + VARHDRSZ);
+		result = (text *)palloc(new_len + VARHDRSZ);
 		data = (char*) VARDATA(result);
 		SET_VARSIZE(result, new_len + VARHDRSZ);
 
@@ -1125,7 +1125,7 @@ ora_concat2(text *str1, text *str2)
 	l1 = VARSIZE_ANY_EXHDR(str1);
 	l2 = VARSIZE_ANY_EXHDR(str2);
 
-	result = palloc(l1+l2+VARHDRSZ);
+	result = (text *)palloc(l1+l2+VARHDRSZ);
 	memcpy(VARDATA(result), VARDATA_ANY(str1), l1);
 	memcpy(VARDATA(result) + l1, VARDATA_ANY(str2), l2);
 	SET_VARSIZE(result, l1 + l2 + VARHDRSZ);
@@ -1146,7 +1146,7 @@ ora_concat3(text *str1, text *str2, text *str3)
 	l2 = VARSIZE_ANY_EXHDR(str2);
 	l3 = VARSIZE_ANY_EXHDR(str3);
 
-	result = palloc(l1+l2+l3+VARHDRSZ);
+	result = (text *)palloc(l1+l2+l3+VARHDRSZ);
 	memcpy(VARDATA(result), VARDATA_ANY(str1), l1);
 	memcpy(VARDATA(result) + l1, VARDATA_ANY(str2), l2);
 	memcpy(VARDATA(result) + l1+l2, VARDATA_ANY(str3), l3);

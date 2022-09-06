@@ -60,7 +60,7 @@ dbms_utility_format_call_stack(char mode)
 
 	MemoryContextSwitchTo(oldcontext);
 
-	for (econtext = error_context_stack;
+	for (econtext = t_thrd.log_cxt.error_context_stack;
 		 econtext != NULL;
 		 econtext = econtext->previous)
 		(*econtext->callback) (econtext->arg);

@@ -70,7 +70,7 @@ ora_sstrcpy(char *str)
 	char *result;
 
 	len = strlen(str);
-	if (NULL != (result = ora_salloc(len+1)))
+	if (NULL != (result = (char *)ora_salloc(len+1)))
 		memcpy(result, str, len + 1);
 	else
 		ereport(ERROR,
@@ -90,7 +90,7 @@ ora_scstring(text *str)
 
 	len = VARSIZE_ANY_EXHDR(str);
 
-	if (NULL != (result = ora_salloc(len+1)))
+	if (NULL != (result = (char *)ora_salloc(len+1)))
 	{
 		memcpy(result, VARDATA_ANY(str), len);
 		result[len] = '\0';

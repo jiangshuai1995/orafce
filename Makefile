@@ -17,16 +17,17 @@ REGRESS = orafce orafce2 dbms_output dbms_utility files varchar2 nvarchar2 aggre
 REGRESS_OPTS = --schedule=parallel_schedule --encoding=utf8
 
 #override CFLAGS += -Wextra -Wimplicit-fallthrough=0
+override CPPFLAGS :=$(filter-out -fPIE,  $(CPPFLAGS)) -fPIC
 
-ifdef NO_PGXS
-subdir = contrib/$(MODULE_big)
-top_builddir = ../..
-include $(top_builddir)/src/Makefile.global
-include $(top_srcdir)/contrib/contrib-global.mk
-else
+ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+else
+subdir = contrib/dblink
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+include $(top_srcdir)/contrib/contrib-global.mk
 endif
 
 ifeq ($(enable_nls), yes)

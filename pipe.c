@@ -1,11 +1,11 @@
 #include "postgres.h"
 #include "funcapi.h"
 #include "fmgr.h"
-#include "access/htup_details.h"
+//#include "access/htup_details.h"
 #include "storage/shmem.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
-#include "storage/lwlock.h"
+#include "storage/lock/lwlock.h"
 #include "miscadmin.h"
 #include "string.h"
 #include "lib/stringinfo.h"
@@ -39,6 +39,8 @@
 #define RESULT_WAIT	1
 
 #define ONE_YEAR (60*60*24*365)
+
+typedef LWLock *LWLockId;
 
 PG_FUNCTION_INFO_V1(dbms_pipe_pack_message_text);
 PG_FUNCTION_INFO_V1(dbms_pipe_unpack_message_text);
@@ -191,12 +193,11 @@ pack_field(message_buffer *buffer, message_data_type type,
 	buffer->next = message_data_item_next(message);
 }
 
-
-static void*
+static const char *
 unpack_field(message_buffer *buffer, message_data_type *type,
 				int32 *size, Oid *tupType)
 {
-	void *ptr;
+	const char *ptr;
 	message_data_item *message;
 
 	Assert(buffer != NULL);
@@ -229,7 +230,7 @@ ora_lock_shmem(size_t size, int max_pipes, int max_events, int max_locks, bool r
 
 	if (pipes == NULL)
 	{
-		sh_mem = ShmemInitStruct("dbms_pipe", size, &found);
+		sh_mem = (sh_memory*)ShmemInitStruct("dbms_pipe", size, &found);
 		if (sh_mem == NULL)
 			ereport(FATAL,
 					(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -266,7 +267,7 @@ ora_lock_shmem(size_t size, int max_pipes, int max_events, int max_locks, bool r
 
 #else
 
-			shmem_lockid = sh_mem->shmem_lockid = LWLockAssign();
+			shmem_lockid = sh_mem->shmem_lockid = LWLockAssign(LWTRANCHE_AUDIT_INDEX_WAIT);
 
 #endif
 
@@ -274,13 +275,13 @@ ora_lock_shmem(size_t size, int max_pipes, int max_events, int max_locks, bool r
 
 			sh_mem->size = size - sh_memory_size;
 			ora_sinit(sh_mem->data, size, true);
-			pipes = sh_mem->pipes = ora_salloc(max_pipes*sizeof(orafce_pipe));
+			pipes = sh_mem->pipes = (orafce_pipe*)ora_salloc(max_pipes*sizeof(orafce_pipe));
 			sid = sh_mem->sid = 1;
 			for (i = 0; i < max_pipes; i++)
 				pipes[i].is_valid = false;
 
-			events = sh_mem->events = ora_salloc(max_events*sizeof(alert_event));
-			locks = sh_mem->locks = ora_salloc(max_locks*sizeof(alert_lock));
+			events = sh_mem->events = (alert_event*)ora_salloc(max_events*sizeof(alert_event));
+			locks = sh_mem->locks = (alert_lock*)ora_salloc(max_locks*sizeof(alert_lock));
 
 			for (i = 0; i < max_events; i++)
 			{
@@ -410,7 +411,7 @@ new_last(orafce_pipe *p, void *ptr)
 
 	if (p->items == NULL)
 	{
-		if (NULL == (p->items = ora_salloc(sizeof(queue_item))))
+		if (NULL == (p->items = (_queue_item*)ora_salloc(sizeof(queue_item))))
 			return false;
 		p->items->next_item = NULL;
 		p->items->ptr = ptr;
@@ -422,7 +423,7 @@ new_last(orafce_pipe *p, void *ptr)
 		q = q->next_item;
 
 
-	if (NULL == (aux_q = ora_salloc(sizeof(queue_item))))
+	if (NULL == (aux_q = (queue_item* )ora_salloc(sizeof(queue_item))))
 		return false;
 
 	q->next_item = aux_q;
@@ -487,7 +488,7 @@ get_from_pipe(text *pipe_name, bool *found)
 	{
 		if (!created)
 		{
-			if (NULL != (shm_msg = remove_first(p, found)))
+			if (NULL != (shm_msg = (message_buffer*)remove_first(p, found)))
 			{
 				p->size -= shm_msg->size;
 
@@ -531,7 +532,7 @@ add_to_pipe(text *pipe_name, message_buffer *ptr, int limit, bool limit_is_valid
 
 			if (ptr != NULL)
 			{
-				if (NULL != (sh_ptr = ora_salloc(ptr->size)))
+				if (NULL != (sh_ptr = (message_buffer*)ora_salloc(ptr->size)))
 				{
 					memcpy(sh_ptr,ptr,ptr->size);
 					if (new_last(p, sh_ptr))
@@ -769,9 +770,9 @@ static Datum
 dbms_pipe_unpack_message(PG_FUNCTION_ARGS, message_data_type dtype)
 {
 	Oid		tupType;
-	void *ptr;
+	const char *ptr;
 	message_data_type type;
-	int32 size;
+	int32 size_a;
 	Datum result;
 	message_data_type next_type;
 
@@ -788,7 +789,7 @@ dbms_pipe_unpack_message(PG_FUNCTION_ARGS, message_data_type dtype)
 				 errmsg("datatype mismatch"),
 				 errdetail("unpack unexpected type: %d", next_type)));
 
-	ptr = unpack_field(input_buffer, &type, &size, &tupType);
+	ptr = unpack_field(input_buffer, &type, &size_a, &tupType);
 	Assert(ptr != NULL);
 
 	switch (type)
@@ -802,7 +803,7 @@ dbms_pipe_unpack_message(PG_FUNCTION_ARGS, message_data_type dtype)
 		case IT_VARCHAR:
 		case IT_NUMBER:
 		case IT_BYTEA:
-			result = PointerGetDatum(cstring_to_text_with_len(ptr, size));
+			result = PointerGetDatum(cstring_to_text_with_len((const char *)ptr, size_a));
 			break;
 		case IT_RECORD:
 		{
@@ -818,7 +819,7 @@ dbms_pipe_unpack_message(PG_FUNCTION_ARGS, message_data_type dtype)
 #endif
 
 			StringInfoData	buf;
-			text		   *data = cstring_to_text_with_len(ptr, size);
+			text		   *data = cstring_to_text_with_len(ptr, size_a);
 
 			buf.data = VARDATA(data);
 			buf.len = VARSIZE(data) - VARHDRSZ;
@@ -1012,7 +1013,7 @@ dbms_pipe_unique_session_name (PG_FUNCTION_ARGS)
 	if (ora_lock_shmem(SHMEMMSGSZ, MAX_PIPES,MAX_EVENTS,MAX_LOCKS,false))
 	{
 		initStringInfo(&strbuf);
-		appendStringInfo(&strbuf,"PG$PIPE$%d$%d",sid, MyProcPid);
+		appendStringInfo(&strbuf,"PG$PIPE$%d$%d",sid, t_thrd.proc_cxt.MyProcPid);
 
 		result = cstring_to_text_with_len(strbuf.data, strbuf.len);
 		pfree(strbuf.data);
@@ -1059,7 +1060,7 @@ dbms_pipe_list_pipes(PG_FUNCTION_ARGS)
 		funcctx = SRF_FIRSTCALL_INIT();
 		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-		fctx = palloc(sizeof(PipesFctx));
+		fctx = (PipesFctx *)palloc(sizeof(PipesFctx));
 		funcctx->user_fctx = fctx;
 		fctx->pipe_nth = 0;
 
@@ -1119,7 +1120,7 @@ dbms_pipe_list_pipes(PG_FUNCTION_ARGS)
 			else
 				values[3] = NULL;
 			/* private */
-			values[4] = (pipes[fctx->pipe_nth].creator ? "true" : "false");
+			values[4] = (pipes[fctx->pipe_nth].creator ? (char *)"true" : (char *)"false");
 			/* owner */
 			values[5] = pipes[fctx->pipe_nth].creator;
 
@@ -1194,7 +1195,7 @@ dbms_pipe_create_pipe (PG_FUNCTION_ARGS)
 				p->uid = GetUserId();
 
 				user = (char*)DirectFunctionCall1(namein,
-					    CStringGetDatum(GetUserNameFromId(p->uid, false)));
+					    CStringGetDatum(GetUserNameFromId(p->uid)));
 
 				p->creator = ora_sstrcpy(user);
 				pfree(user);
